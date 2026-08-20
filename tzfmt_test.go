@@ -68,6 +68,59 @@ func TestNormalizeRejects(t *testing.T) {
 	}
 }
 
+func TestExtractOffset(t *testing.T) {
+	cases := []struct {
+		name      string
+		timestamp string
+		want      int
+	}{
+		{"ISO with Z", "2024-01-15T10:30:00Z", 0},
+		{"ISO with fractional seconds and Z", "2024-01-15T10:30:00.123456Z", 0},
+		{"ISO with colon offset", "2024-01-15T10:30:00+05:30", 330},
+		{"ISO with negative colon offset", "2024-01-15T10:30:00-05:00", -300},
+		{"ISO with concatenated offset", "2024-01-15T10:30:00+0530", 330},
+		{"space-separated UTC label only", "2024-01-15 10:30:00 UTC", 0},
+		{"space-separated UTC label with offset", "2024-01-15 10:30:00 UTC+5:30", 330},
+		{"space-separated UTC label with space before sign", "2024-01-15 10:30:00 UTC +5:30", 330},
+		{"lowercase gmt label glued to offset", "2024-01-15 10:30:00 gmt-3", -180},
+		{"go time.String() UTC", "2009-11-10 23:00:00 +0000 UTC", 0},
+		{"go time.String() with positive offset and name", "2024-06-01 08:15:00 +0530 IST", 330},
+		{"go time.String() with negative offset and name", "2024-06-01 08:15:00 -0700 MST", -420},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := ExtractOffset(c.timestamp)
+			if err != nil {
+				t.Fatalf("ExtractOffset(%q) returned unexpected error: %v", c.timestamp, err)
+			}
+			if got != c.want {
+				t.Errorf("ExtractOffset(%q) = %d, want %d", c.timestamp, got, c.want)
+			}
+		})
+	}
+}
+
+func TestExtractOffsetRejects(t *testing.T) {
+	cases := []struct {
+		name      string
+		timestamp string
+	}{
+		{"no offset at all", "2024-01-15T10:30:00"},
+		{"bare date, no time component", "2024-01-05"},
+		{"trailing ambiguous abbreviation with no numeric offset", "2024-01-15 10:30:00 EST"},
+		{"empty string", ""},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got, err := ExtractOffset(c.timestamp); err == nil {
+				t.Errorf("ExtractOffset(%q) = %d, want error", c.timestamp, got)
+			}
+		})
+	}
+}
+
 func TestFormatOffset(t *testing.T) {
 	cases := []struct {
 		minutes int

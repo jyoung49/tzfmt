@@ -69,6 +69,28 @@ minutes, err := tzfmt.ParseOffset("+05:30")
 loc := time.FixedZone("", minutes*60)
 ```
 
+## Offsets embedded in timestamps
+
+Real timestamps carry the offset as part of a larger string rather than
+on its own, so pulling it out first is its own small headache. `ExtractOffset`
+does that: it finds the offset at the end of a full timestamp and parses
+it, whether it's glued directly onto the time (`2024-01-15T10:30:00+05:30`,
+`2024-01-15T10:30:00Z`), set off with a `UTC`/`GMT` label
+(`2024-01-15 10:30:00 UTC+5:30`), or has a trailing zone abbreviation
+tacked on the way Go's `time.Time.String()` writes it out
+(`2009-11-10 23:00:00 +0530 IST`). In that last case the numeric offset
+wins over the abbreviation, so `IST` doesn't get rejected as ambiguous
+when the `+0530` next to it already says what it means.
+
+```go
+minutes, err := tzfmt.ExtractOffset("2009-11-10 23:00:00 +0530 IST")
+// minutes == 330
+```
+
+A timestamp with no time component - a bare date, say - has nothing to
+anchor a bare signed offset to, so `ExtractOffset` reports no offset
+found rather than misreading the last digits of the date as one.
+
 There's also a small CLI in `cmd/tzfmt` for checking a value from a
 shell prompt:
 
@@ -80,5 +102,5 @@ tzfmt: "EST" is an ambiguous timezone abbreviation; use an explicit offset like 
 
 ## Status
 
-Early. The offset normaliser and its test suite are the whole thing
-right now — see the roadmap for what's next.
+Early. Offset normalisation and extracting offsets from full timestamps
+are in, both with test suites — see the roadmap for what's next.

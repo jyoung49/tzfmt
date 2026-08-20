@@ -112,3 +112,72 @@ func Normalize(input string) (string, error) {
 	}
 	return FormatOffset(minutes), nil
 }
+
+// labeledOffsetSuffix matches a UTC/GMT label immediately followed by a
+// signed offset at the end of a timestamp ("...UTC+5:30", "...gmt-3").
+// The literal label makes this unambiguous regardless of what precedes it.
+var labeledOffsetSuffix = regexp.MustCompile(`(?:UTC|GMT)\s*([+-]\d{1,2}(?::?\d{2})?)$`)
+
+// namedOffsetSuffix matches a signed offset followed by a trailing zone
+// abbreviation, the shape produced by Go's time.Time.String() and similar
+// formatters ("...+0000 UTC", "...-0700 MST"). The numeric offset is
+// authoritative, so the name is matched only to anchor the pattern and is
+// discarded rather than passed to ParseOffset - "...+0530 IST" should
+// resolve to +05:30, not fail on the ambiguity of IST.
+var namedOffsetSuffix = regexp.MustCompile(`([+-]\d{1,2}(?::?\d{2})?)\s+[A-Z]{2,6}$`)
+
+// zuluOffsetSuffix matches a bare "Z" glued directly onto the end of a
+// timestamp with no separating whitespace, the ISO 8601 shape
+// ("...10:30:00Z", "...10:30:00.123Z").
+var zuluOffsetSuffix = regexp.MustCompile(`[0-9.](Z)$`)
+
+// bareOffsetSuffix matches a signed offset glued directly onto the end of
+// a timestamp with no label and no separating whitespace, the other ISO
+// 8601 shape ("...10:30:00+05:30", "...10:30:00-0500"). Unlike the other
+// suffix patterns this one has no label or name to anchor it, so ExtractOffset
+// only tries it when the input contains a colon - otherwise a plain date
+// like "2024-01-05" would have its "-05" day-of-month misread as an offset.
+var bareOffsetSuffix = regexp.MustCompile(`([+-]\d{1,2}(?::?\d{2})?)$`)
+
+// labelOnlySuffix matches a trailing UTC/GMT/abbreviation token with no
+// offset digits attached at all ("...2024-01-15 10:30:00 UTC", "... EST").
+var labelOnlySuffix = regexp.MustCompile(`(?:^|\s)([A-Z]{2,6})$`)
+
+// ExtractOffset finds and parses the UTC offset embedded at the end of a
+// full timestamp, so callers don't have to isolate the offset from the
+// rest of the string themselves. It recognises the offset shapes ParseOffset
+// does, plus the extra ambiguity that comes from being embedded: a signed
+// offset can be glued directly onto the time with no separator
+// ("10:30:00+05:30", "10:30:00Z"), and some formats - notably Go's
+// time.Time.String() - append a zone abbreviation after an explicit numeric
+// offset ("+0000 UTC", "-0700 MST"). In that last case the numeric offset
+// wins; the trailing name is discarded rather than rejected as ambiguous,
+// since the number already resolves it.
+//
+// Timestamps that have no time component at all, like a bare date, are not
+// supported: without a colon to signal a time part, ExtractOffset can't
+// tell a signed offset from the last few digits of the date, so it reports
+// no offset found rather than guessing.
+func ExtractOffset(timestamp string) (int, error) {
+	upper := strings.ToUpper(timestamp)
+
+	if m := labeledOffsetSuffix.FindStringSubmatch(upper); m != nil {
+		return ParseOffset(m[1])
+	}
+	if m := namedOffsetSuffix.FindStringSubmatch(upper); m != nil {
+		return ParseOffset(m[1])
+	}
+	if m := zuluOffsetSuffix.FindStringSubmatch(upper); m != nil {
+		return ParseOffset(m[1])
+	}
+	if strings.Contains(upper, ":") {
+		if m := bareOffsetSuffix.FindStringSubmatch(upper); m != nil {
+			return ParseOffset(m[1])
+		}
+	}
+	if m := labelOnlySuffix.FindStringSubmatch(upper); m != nil {
+		return ParseOffset(m[1])
+	}
+
+	return 0, fmt.Errorf("tzfmt: no UTC offset found in %q", timestamp)
+}
