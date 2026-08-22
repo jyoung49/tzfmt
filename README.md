@@ -91,6 +91,26 @@ A timestamp with no time component - a bare date, say - has nothing to
 anchor a bare signed offset to, so `ExtractOffset` reports no offset
 found rather than misreading the last digits of the date as one.
 
+## Resolving IANA zone names
+
+Sometimes what you have isn't a raw offset at all but a proper zone name -
+`America/New_York`, `Europe/London` - and you want the offset that zone is
+actually at for a given instant, DST included. `ResolveZoneOffset` and
+`ResolveZone` do that as an opt-in alternative to the raw-offset parsing
+above:
+
+```go
+minutes, err := tzfmt.ResolveZoneOffset("America/New_York", time.Date(2024, 7, 15, 0, 0, 0, 0, time.UTC))
+// minutes == -240 (EDT, daylight saving is in effect in July)
+
+offset, err := tzfmt.ResolveZone("America/New_York", time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC))
+// offset == "-05:00" (EST, standard time in January)
+```
+
+`"Local"` is rejected even though the standard library resolves it: it
+means whatever zone the host machine happens to be configured with, which
+is exactly the kind of non-portable ambiguity this package exists to avoid.
+
 There's also a small CLI in `cmd/tzfmt` for checking a value from a
 shell prompt:
 
@@ -102,5 +122,5 @@ tzfmt: "EST" is an ambiguous timezone abbreviation; use an explicit offset like 
 
 ## Status
 
-Early. Offset normalisation and extracting offsets from full timestamps
-are in, both with test suites — see the roadmap for what's next.
+Early. Offset normalisation, extracting offsets from full timestamps, and
+resolving IANA zone names are all in, each with a test suite.

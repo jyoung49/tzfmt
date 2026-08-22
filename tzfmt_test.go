@@ -1,6 +1,9 @@
 package tzfmt
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNormalize(t *testing.T) {
 	cases := []struct {
@@ -116,6 +119,55 @@ func TestExtractOffsetRejects(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			if got, err := ExtractOffset(c.timestamp); err == nil {
 				t.Errorf("ExtractOffset(%q) = %d, want error", c.timestamp, got)
+			}
+		})
+	}
+}
+
+func TestResolveZone(t *testing.T) {
+	cases := []struct {
+		name string
+		zone string
+		at   time.Time
+		want string
+	}{
+		{"fixed offset, no DST", "Asia/Kolkata", time.Date(2024, 7, 15, 0, 0, 0, 0, time.UTC), "+05:30"},
+		{"standard time", "America/New_York", time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC), "-05:00"},
+		{"daylight time", "America/New_York", time.Date(2024, 7, 15, 0, 0, 0, 0, time.UTC), "-04:00"},
+		{"standard time, UK", "Europe/London", time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC), "+00:00"},
+		{"daylight time, UK", "Europe/London", time.Date(2024, 7, 15, 0, 0, 0, 0, time.UTC), "+01:00"},
+		{"UTC zone name itself", "UTC", time.Date(2024, 7, 15, 0, 0, 0, 0, time.UTC), "+00:00"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := ResolveZone(c.zone, c.at)
+			if err != nil {
+				t.Fatalf("ResolveZone(%q, %v) returned unexpected error: %v", c.zone, c.at, err)
+			}
+			if got != c.want {
+				t.Errorf("ResolveZone(%q, %v) = %q, want %q", c.zone, c.at, got, c.want)
+			}
+		})
+	}
+}
+
+func TestResolveZoneRejects(t *testing.T) {
+	cases := []struct {
+		name string
+		zone string
+	}{
+		{"unknown zone", "Not/AZone"},
+		{"empty string", ""},
+		{"host-dependent Local", "Local"},
+		{"lowercase local, still host-dependent", "local"},
+	}
+
+	at := time.Date(2024, 7, 15, 0, 0, 0, 0, time.UTC)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got, err := ResolveZoneOffset(c.zone, at); err == nil {
+				t.Errorf("ResolveZoneOffset(%q, ...) = %d, want error", c.zone, got)
 			}
 		})
 	}

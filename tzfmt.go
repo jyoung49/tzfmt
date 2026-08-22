@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // MinOffsetMinutes and MaxOffsetMinutes are the real-world bounds on a UTC
@@ -180,4 +181,40 @@ func ExtractOffset(timestamp string) (int, error) {
 	}
 
 	return 0, fmt.Errorf("tzfmt: no UTC offset found in %q", timestamp)
+}
+
+// ResolveZoneOffset looks up an IANA time zone name (e.g. "America/New_York")
+// and returns its UTC offset, in minutes, at the given instant. This is an
+// opt-in alternative to a raw offset for callers who have a proper zone name
+// rather than a number: unlike a fixed offset, a named zone can resolve to a
+// different value depending on at, because of daylight saving.
+//
+// "Local" is rejected even though the standard library accepts it, because
+// it resolves to whatever zone the host machine happens to be configured
+// with rather than a fixed, portable answer - the same ambiguity this
+// package rejects timezone abbreviations for.
+func ResolveZoneOffset(zone string, at time.Time) (int, error) {
+	if strings.EqualFold(zone, "Local") {
+		return 0, fmt.Errorf("tzfmt: %q is not a portable IANA zone name; it depends on host configuration", zone)
+	}
+
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		return 0, fmt.Errorf("tzfmt: unknown IANA zone %q: %w", zone, err)
+	}
+
+	_, offsetSeconds := at.In(loc).Zone()
+	return offsetSeconds / 60, nil
+}
+
+// ResolveZone resolves an IANA zone name to its canonical +HH:MM offset at
+// the given instant. It is a convenience wrapper around ResolveZoneOffset
+// and FormatOffset for the common case where the caller just wants the
+// rendered string.
+func ResolveZone(zone string, at time.Time) (string, error) {
+	minutes, err := ResolveZoneOffset(zone, at)
+	if err != nil {
+		return "", err
+	}
+	return FormatOffset(minutes), nil
 }
