@@ -123,4 +123,7 @@ tzfmt: "EST" is an ambiguous timezone abbreviation; use an explicit offset like 
 ## Status
 
 Early. Offset normalisation, extracting offsets from full timestamps, and
-resolving IANA zone names are all in, each with a test suite.
+resolving IANA zone names are all in, each with a test suite. `Normalize`
+and `ExtractOffset` also have fuzz targets (`go test -fuzz=FuzzNormalize`,
+`go test -fuzz=FuzzExtractOffset`) that check idempotency and range
+invariants against inputs the hand-written cases don't cover.
