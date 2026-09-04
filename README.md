@@ -126,4 +126,7 @@ Early. Offset normalisation, extracting offsets from full timestamps, and
 resolving IANA zone names are all in, each with a test suite. `Normalize`
 and `ExtractOffset` also have fuzz targets (`go test -fuzz=FuzzNormalize`,
 `go test -fuzz=FuzzExtractOffset`) that check idempotency and range
-invariants against inputs the hand-written cases don't cover.
+invariants against inputs the hand-written cases don't cover. There are
+also benchmarks (`go test -bench=.`) for the regex-based parse path, since
+`ParseOffset` and `ExtractOffset` are the kind of thing that ends up
+called in a hot loop over a log file.
