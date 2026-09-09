@@ -112,12 +112,20 @@ means whatever zone the host machine happens to be configured with, which
 is exactly the kind of non-portable ambiguity this package exists to avoid.
 
 There's also a small CLI in `cmd/tzfmt` for checking a value from a
-shell prompt:
+shell prompt. By default it normalises each argument as a raw offset;
+`-extract` treats each argument as a full timestamp instead, and `-zone`
+treats each argument as an IANA zone name resolved at the current time:
 
 ```
 $ go run ./cmd/tzfmt +0530 EST
 +05:30
 tzfmt: "EST" is an ambiguous timezone abbreviation; use an explicit offset like -05:00
+
+$ go run ./cmd/tzfmt -extract "2024-01-15 10:30:00 +0530 IST"
++05:30
+
+$ go run ./cmd/tzfmt -zone Asia/Kolkata
++05:30
 ```
 
 ## Status

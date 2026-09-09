@@ -14,10 +14,14 @@ func TestRun(t *testing.T) {
 		wantStderr string
 	}{
 		{
-			name:       "no arguments",
-			args:       nil,
-			wantCode:   2,
-			wantStderr: "usage: tzfmt <offset> [offset...]\n",
+			name:     "no arguments",
+			args:     nil,
+			wantCode: 2,
+			wantStderr: "usage: tzfmt [-extract | -zone] <value> [value...]\n" +
+				"  -extract\n" +
+				"    \ttreat each argument as a full timestamp and extract its embedded UTC offset\n" +
+				"  -zone\n" +
+				"    \ttreat each argument as an IANA zone name and resolve its current UTC offset\n",
 		},
 		{
 			name:       "single valid offset",
@@ -43,6 +47,36 @@ func TestRun(t *testing.T) {
 			wantCode:   1,
 			wantStdout: "+05:30\n-05:00\n",
 			wantStderr: "tzfmt: \"EST\" is an ambiguous timezone abbreviation; use an explicit offset like -05:00\n",
+		},
+		{
+			name:       "extract flag pulls the offset out of a full timestamp",
+			args:       []string{"-extract", "2024-01-15T10:30:00+05:30"},
+			wantCode:   0,
+			wantStdout: "+05:30\n",
+		},
+		{
+			name:       "extract flag reports failure when no offset is found",
+			args:       []string{"-extract", "2024-01-05"},
+			wantCode:   1,
+			wantStderr: "tzfmt: no UTC offset found in \"2024-01-05\"\n",
+		},
+		{
+			name:       "zone flag resolves an IANA zone name with no DST to worry about",
+			args:       []string{"-zone", "Asia/Kolkata"},
+			wantCode:   0,
+			wantStdout: "+05:30\n",
+		},
+		{
+			name:       "zone flag reports failure for an unknown zone",
+			args:       []string{"-zone", "Not/AZone"},
+			wantCode:   1,
+			wantStderr: "tzfmt: unknown IANA zone \"Not/AZone\": unknown time zone Not/AZone\n",
+		},
+		{
+			name:       "extract and zone together are rejected",
+			args:       []string{"-extract", "-zone", "Z"},
+			wantCode:   2,
+			wantStderr: "tzfmt: -extract and -zone are mutually exclusive\n",
 		},
 	}
 
